@@ -1,11 +1,6 @@
+// App.tsx
 import { useState, useEffect } from "react";
-import {
-  Ship,
-  Trash2,
-  Navigation,
-  Bell,
-  Search,
-} from "lucide-react";
+import { Ship, Trash2, Navigation, Bell, Search } from "lucide-react";
 import MapView from "./components/MapView";
 import Modal from "./components/Modal";
 import AddShipModal from "./components/AddShipModal";
@@ -16,7 +11,6 @@ import {
   getAllAllShips,
   createAllShip,
   getAllAlerts,
-  createAlert,
 } from "./services/api";
 import { generateRandomShips } from "./utils/generateShips";
 
@@ -47,7 +41,6 @@ function App() {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [loading, setLoading] = useState(true);
 
-  // 🧭 Fetch ships and alerts from backend
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -56,30 +49,22 @@ function App() {
           getAllAlerts(),
         ]);
 
-        // Format ships
         const formattedShips: ShipData[] = allShips.map((ship) => ({
           id: ship.shipid.toString(),
           name: ship.name,
           position: { lat: ship.latitude, lng: ship.longitude },
           type: String(ship.type),
-          speed: ship.ship_info.speed,
-          rotation_speed: ship.ship_info.rotation_speed,
+          speed: ship.ship_info?.speed ?? 0,
+          rotation_speed: ship.ship_info?.rotation_speed ?? 0,
         }));
 
         setShips(formattedShips);
 
-        // Format alerts from backend
-        const formattedAlerts: Alert[] = allAlerts.map((a) => ({
-          id: a.id?.toString() || Math.random().toString(),
-          type:
-            a.type === "warning"
-              ? "warning"
-              : a.type === "error"
-              ? "error"
-              : a.type === "info"
-              ? "info"
-              : "success",
-          message: a.type,
+        // convert backend AlertType to local Alert objects
+        const formattedAlerts: Alert[] = allAlerts.map((a, idx) => ({
+          id: a.alert_id ?? `alert-${idx}`,
+          type: "info",
+          message: a.name ?? a.alert_id,
           timestamp: new Date(),
           source: "user",
         }));
@@ -96,7 +81,6 @@ function App() {
     fetchData();
   }, []);
 
-  // 🛟 Utility: Add alert locally
   const addAlert = (
     type: Alert["type"],
     message: string,
@@ -114,17 +98,22 @@ function App() {
     ]);
   };
 
-  // 🧾 Handle user-triggered alert selection → Save to backend + show in UI
+  // called when user selects an alert in AlertModal
   const handleAlertSelect = async (alert: {
     id: string;
     label: string;
     type: "info" | "warning" | "error";
   }) => {
     try {
-      // Save to backend
-      await createAlert({ type: alert.label });
+      // backend needs full TriggerAlertRequest; use defaults for coordinates/climate if not provided by UI
+      await triggerAlert({
+        alert_id: alert.id,
+        target_x: 0,
+        target_y: 0,
+        climate_condition: 0,
+        status: true,
+      });
 
-      // Add to local state
       addAlert(alert.type, alert.label, "user");
     } catch (error) {
       console.error("Failed to create alert:", error);
@@ -132,7 +121,6 @@ function App() {
     }
   };
 
-  // ➕ Add new ship
   const addShip = async (shipData: {
     name: string;
     lat: number;
@@ -158,7 +146,10 @@ function App() {
       };
 
       setShips((prev) => [...prev, formattedShip]);
-      addAlert("success", `New ship "${formattedShip.name}" added successfully`);
+      addAlert(
+        "success",
+        `New ship "${formattedShip.name}" added successfully`
+      );
       setActiveModal(null);
     } catch (error) {
       console.error("Failed to add ship:", error);
@@ -166,14 +157,12 @@ function App() {
     }
   };
 
-  // ❌ Delete ship
   const deleteShip = (id: string) => {
     const ship = ships.find((s) => s.id === id);
     setShips(ships.filter((s) => s.id !== id));
     if (ship) addAlert("error", `Ship "${ship.name}" has been removed`);
   };
 
-  // 🚀 Move ship
   const moveShip = (id: string, lat: number, lng: number) => {
     setShips(
       ships.map((ship) =>
@@ -185,7 +174,6 @@ function App() {
     setActiveModal(null);
   };
 
-  // 🌀 Generate random ships (for simulation)
   const generateRandomShipsData = async () => {
     try {
       const randomShips = await generateRandomShips(5);
@@ -206,14 +194,12 @@ function App() {
     }
   };
 
-  // 🔍 Filter ships by name
   const filteredShips = ships.filter((ship) =>
     ship.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
-      {/* 🔎 Search Bar */}
       <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 w-full max-w-2xl px-4">
         <div className="relative">
           <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
@@ -229,7 +215,6 @@ function App() {
         </div>
       </div>
 
-      {/* 🚢 Action Buttons (Right side) */}
       <div className="absolute right-6 top-32 z-10 flex flex-col gap-3">
         <button
           onClick={() => setActiveModal("add")}
@@ -253,7 +238,6 @@ function App() {
         </button>
       </div>
 
-      {/* 🔔 Alert Button */}
       <button
         onClick={() => setActiveModal("alert")}
         className="absolute right-6 bottom-6 z-10 px-6 py-3 bg-white hover:bg-orange-600 hover:text-white rounded-lg shadow-lg flex items-center gap-2 transition-all"
@@ -267,7 +251,6 @@ function App() {
         )}
       </button>
 
-      {/* 🗺️ Map */}
       <div className="flex-1 relative">
         {loading ? (
           <div className="flex items-center justify-center h-full text-lg text-gray-600">
@@ -278,7 +261,6 @@ function App() {
         )}
       </div>
 
-      {/* 🧩 Modals */}
       <Modal
         isOpen={activeModal === "add"}
         onClose={() => setActiveModal(null)}

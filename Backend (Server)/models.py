@@ -32,11 +32,10 @@ class AllShip(Base):
 
 
 class Alert(Base):
-    __tablename__ = "alerts"
+    __tablename__ = "alert"
 
     id = Column(Integer, primary_key=True, index=True)
-    type = Column(String, nullable=False)
-    status = Column(Boolean, default=True)
-    shipid = Column(Integer, ForeignKey("all_ships.shipid"))
-
-    all_ship = relationship("AllShip", backref="alerts")
+    name = Column(String(255), nullable=False)
+    human_error = Column(Double, nullable=False)
+    attack = Column(Double, nullable=False)
+    weather = Column(Double, nullable=False)

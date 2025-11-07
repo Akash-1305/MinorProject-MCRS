@@ -1,5 +1,7 @@
-const BASE_URL = 'http://localhost:8000';
+// services/api.ts
+const BASE_URL = "http://localhost:8000";
 
+/* ---------- Interfaces ---------- */
 export interface ShipInfo {
   name: string;
   speed: number;
@@ -37,95 +39,73 @@ export interface LocationsResponse {
   message: string;
 }
 
-export interface AlertData {
-  id?: string;
-  type: "info" | "success" | "warning" | "error";
-  status?: boolean;
-  shipid?: number | null;
+export interface AlertType {
+  alert_id: string;
+  name: string;
+  human_error: number;
+  attack: number;
+  weater: number;
 }
 
-// Ships endpoints
 export const getAllShips = async (): Promise<ShipInfo[]> => {
   const response = await fetch(`${BASE_URL}/ships`);
-  if (!response.ok) {
-    throw new Error('Failed to fetch ships');
-  }
+  if (!response.ok) throw new Error("Failed to fetch ships");
   return response.json();
 };
 
 export const getShipById = async (shipId: number): Promise<ShipInfo> => {
   const response = await fetch(`${BASE_URL}/ships/${shipId}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ship with id ${shipId}`);
-  }
+  if (!response.ok) throw new Error(`Failed to fetch ship with id ${shipId}`);
   return response.json();
 };
 
-// AllShips endpoints
 export const getAllAllShips = async (): Promise<AllShip[]> => {
   const response = await fetch(`${BASE_URL}/allships`);
-  if (!response.ok) {
-    throw new Error('Failed to fetch all ships');
-  }
+  if (!response.ok) throw new Error("Failed to fetch all ships");
   return response.json();
 };
 
 export const getAllShipById = async (allShipId: number): Promise<AllShip> => {
   const response = await fetch(`${BASE_URL}/allships/${allShipId}`);
-  if (!response.ok) {
+  if (!response.ok)
     throw new Error(`Failed to fetch allship with id ${allShipId}`);
-  }
   return response.json();
 };
 
-export const createAllShip = async (data: Omit<AllShip, 'shipid' | 'ship_info'>): Promise<Omit<AllShip, 'ship_info'>> => {
+export const createAllShip = async (
+  data: Omit<AllShip, "shipid" | "ship_info">
+): Promise<Omit<AllShip, "ship_info">> => {
   const response = await fetch(`${BASE_URL}/addships`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  
-  if (!response.ok) {
-    throw new Error('Failed to create allship');
-  }
+  if (!response.ok) throw new Error("Failed to create allship");
   return response.json();
 };
 
-// Location generation endpoints
+/* ---------- API: Locations ---------- */
 export const generateRandomLocation = async (): Promise<LocationResponse> => {
   const response = await fetch(`${BASE_URL}/generate-location`);
-  if (!response.ok) {
-    throw new Error('Failed to generate random location');
-  }
+  if (!response.ok) throw new Error("Failed to generate random location");
   return response.json();
 };
 
-export const generateMultipleRandomLocations = async (count?: number): Promise<LocationsResponse> => {
-  const url = count 
+export const generateMultipleRandomLocations = async (
+  count?: number
+): Promise<LocationsResponse> => {
+  const url = count
     ? `${BASE_URL}/generate-locations?count=${count}`
     : `${BASE_URL}/generate-locations`;
-    
   const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error('Failed to generate multiple random locations');
-  }
+  if (!response.ok)
+    throw new Error("Failed to generate multiple random locations");
   return response.json();
 };
 
-export const getAllAlerts = async (): Promise<AlertData[]> => {
+export const getAllAlerts = async (): Promise<AlertType[]> => {
   const response = await fetch(`${BASE_URL}/alerts`);
   if (!response.ok) throw new Error("Failed to fetch alerts");
   return response.json();
 };
 
-export const createAlert = async (data: { type: string; shipid?: number | null }): Promise<AlertData> => {
-  const response = await fetch(`${BASE_URL}/alerts`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) throw new Error("Failed to create alert");
-  return response.json();
-};

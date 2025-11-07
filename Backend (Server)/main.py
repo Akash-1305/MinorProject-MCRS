@@ -1,13 +1,12 @@
-# main.py
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional
-
 from database import SessionLocal, engine
-from models import Base, Ship, AllShip
+from models import Base, Ship, AllShip, Alert
 import schemas
 import location_generator
+from typing import Dict, Any
 
 # Create tables if they don't exist (optional; in production use migrations)
 Base.metadata.create_all(bind=engine)
@@ -149,46 +148,24 @@ def generate_random_locations(count: int = 5):
         "message": f"Generated {len(formatted_locations)} random locations within Indian Navy operational area"
     }
 
-from models import Alert
-from sqlalchemy import desc
 
-@app.post("/alerts")
-def create_alert(alert: dict, db: Session = Depends(get_db)):
-    """
-    Create a new alert record.
-    Frontend will send: { "type": "error" | "warning" | "info", "shipid": optional }
-    """
-    try:
-        db_alert = Alert(
-            type=alert.get("type", "info"),
-            status=True,
-            shipid=alert.get("shipid")
-        )
-        db.add(db_alert)
-        db.commit()
-        db.refresh(db_alert)
-        return {
-            "id": db_alert.id,
-            "type": db_alert.type,
-            "status": db_alert.status,
-            "shipid": db_alert.shipid,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@app.get("/alerts")
+@app.get("/alerts", response_model=List[schemas.AlertBase])
 def get_all_alerts(db: Session = Depends(get_db)):
     """
-    Return all alerts stored in the database (latest first).
+    Retrieve all available alert types from the database.
     """
-    alerts = db.query(Alert).order_by(desc(Alert.id)).all()
+    alerts = db.query(Alert).all()
+    if not alerts:
+        raise HTTPException(status_code=404, detail="No alerts found")
+
     return [
-        {
-            "id": a.id,
-            "type": a.type,
-            "status": a.status,
-            "shipid": a.shipid,
-        }
-        for a in alerts
+        schemas.AlertBase(
+            id=alert.id,
+            name=alert.name,
+            human_error=alert.human_error,
+            attack=alert.attack,
+            weather=alert.weather
+        )
+        for alert in alerts
     ]
+

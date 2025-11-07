@@ -24,7 +24,7 @@ class ShipRead(ShipBase):
 
 class AllShipBase(BaseModel):
     name: str
-    type: int  # This is a foreign key to Ship.id
+    type: int
     longitude: float
     latitude: float
     mission: bool
@@ -44,3 +44,10 @@ class AllShipWithShipInfo(AllShipBase):
 
     class Config:
         from_attributes = True
+
+class AlertBase(BaseModel):
+    id: int
+    name: str
+    human_error: float
+    attack: float
+    weather: float
