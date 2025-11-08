@@ -51,3 +51,29 @@ class AlertBase(BaseModel):
     human_error: float
     attack: float
     weather: float
+
+class TriggerAlertRequest(BaseModel):
+    alert_type: str
+    latitude: float
+    longitude: float
+    climate_condition: int  # 1, 3, or 5
+
+
+class TriggerAlertResponse(BaseModel):
+    alert_type: str
+    best_ship: str
+    ship_id: int
+    final_score: float
+
+
+class AlertResultBase(BaseModel):
+    id: int
+    alert_type: str
+    best_ship: str
+    final_score: float
+    timestamp: datetime
+    status: bool
+
+    class Config:
+        from_attributes = True
+

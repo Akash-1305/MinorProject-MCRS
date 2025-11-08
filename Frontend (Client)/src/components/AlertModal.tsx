@@ -1,32 +1,31 @@
 import React, { useState, useEffect } from "react";
 import {
   getAllAlerts,
-  AlertType,
+  getAllTriggeredAlerts,
+  triggerAlert,
+  TriggerAlertRequest,
+  TriggerAlertResponse,
+  AlertResultBase,
 } from "../services/api";
 
 interface AlertOption {
-  id: string;
-  label: string;
-  type: "info" | "warning" | "error";
+  name: string;
 }
 
 interface AlertModalProps {
-  alerts?: {
-    id: string;
-    type: "info" | "success" | "warning" | "error";
-    message: string;
-    timestamp: Date;
-    source: "user" | "system";
-  }[];
-  onSelect: (alert: AlertOption) => void;
+  alerts?: AlertResultBase[];
+  onSelect: (alert: { id: string; label: string; type: "info" }) => void;
+  onAlertCountChange?: (count: number) => void; // For badge update in parent
 }
 
-const AlertModal: React.FC<AlertModalProps> = ({ alerts, onSelect }) => {
+const AlertModal: React.FC<AlertModalProps> = ({
+  alerts,
+  onSelect,
+  onAlertCountChange,
+}) => {
   const [viewMode, setViewMode] = useState<"select" | "view">("select");
-  const [alertOptions, setAlertOptions] = useState<AlertType[]>([]);
-  const [triggeredAlerts, setTriggeredAlerts] = useState<TriggerAlertRequest[]>(
-    []
-  );
+  const [alertOptions, setAlertOptions] = useState<AlertOption[]>([]);
+  const [triggeredAlerts, setTriggeredAlerts] = useState<AlertResultBase[]>([]);
   const [selectedAlert, setSelectedAlert] = useState("");
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
@@ -35,39 +34,53 @@ const AlertModal: React.FC<AlertModalProps> = ({ alerts, onSelect }) => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  /* ---------- Fetch All Alerts ---------- */
+  // Fetch all available alert types
   useEffect(() => {
     const fetchAlerts = async () => {
       try {
         const data = await getAllAlerts();
-        setAlertOptions(data);
+        setAlertOptions(data.map((a) => ({ name: a.name })));
       } catch (err) {
         console.error("Error fetching alerts:", err);
-        setError("Failed to fetch alert options");
+        setError("Failed to fetch alert options.");
       }
     };
     fetchAlerts();
   }, []);
 
-  /* ---------- Fetch Triggered Alerts ---------- */
+  // Fetch triggered alerts only when "View Alerts" tab is active
   useEffect(() => {
     if (viewMode === "view") {
       const fetchTriggered = async () => {
         try {
           const data = await getAllTriggeredAlerts();
-          setTriggeredAlerts(data);
+
+          // Only include alerts where status is true or 1
+          const activeAlerts = data.filter(
+            (alert: any) => alert.status === true || alert.status === 1
+          );
+
+          setTriggeredAlerts(activeAlerts);
+
+          // Notify parent (for badge)
+          if (onAlertCountChange) {
+            onAlertCountChange(activeAlerts.length);
+          }
         } catch (err) {
           console.error("Error fetching triggered alerts:", err);
-          setError("Failed to fetch triggered alerts");
+          setError("Failed to fetch triggered alerts.");
         }
       };
       fetchTriggered();
     }
-  }, [viewMode]);
+  }, [viewMode, onAlertCountChange]);
 
-  /* ---------- Trigger New Alert ---------- */
+  // Trigger a new alert
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (loading) return; // ✅ prevents double submission
+
     setError(null);
     setSuccessMsg(null);
 
@@ -78,55 +91,38 @@ const AlertModal: React.FC<AlertModalProps> = ({ alerts, onSelect }) => {
 
     try {
       setLoading(true);
+
       const alertData: TriggerAlertRequest = {
-        alert_id: selectedAlert,
-        name:
-          alertOptions.find((a) => a.alert_id === selectedAlert)?.name ||
-          "Unknown Alert",
-        target_x: parseFloat(lat),
-        target_y: parseFloat(lng),
+        alert_type: selectedAlert,
+        latitude: parseFloat(lat),
+        longitude: parseFloat(lng),
         climate_condition: parseInt(climate, 10),
-        status: true,
       };
 
-      const response = await triggerAlert(alertData);
-      setSuccessMsg(response.message);
+      const response: TriggerAlertResponse = await triggerAlert(alertData);
 
-      onSelect({
-        id: selectedAlert,
-        label: alertData.name,
-        type: "info",
-      });
+      setSuccessMsg(`Alert "${response.alert_type}" triggered successfully!`);
+      onSelect({ id: selectedAlert, label: response.alert_type, type: "info" });
 
+      // reset form
       setSelectedAlert("");
       setLat("");
       setLng("");
       setClimate("");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError("Failed to trigger alert. Please try again.");
+      const msg =
+        err?.response?.data?.detail ||
+        "Failed to trigger alert. Please try again.";
+      setError(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  /* ---------- Helpers ---------- */
-  const getClimateLabel = (code: number) => {
-    switch (code) {
-      case 1:
-        return "Tufan";
-      case 2:
-        return "High Waves";
-      case 3:
-        return "Clean";
-      default:
-        return "Unknown";
-    }
-  };
-
   return (
     <div className="p-4">
-      {/* Tabs */}
+      {/* Mode Toggle */}
       <div className="flex justify-center gap-3 mb-6">
         <button
           onClick={() => setViewMode("select")}
@@ -150,7 +146,7 @@ const AlertModal: React.FC<AlertModalProps> = ({ alerts, onSelect }) => {
         </button>
       </div>
 
-      {/* Trigger New Alert */}
+      {/* --- TRIGGER ALERT --- */}
       {viewMode === "select" && (
         <form
           onSubmit={handleSubmit}
@@ -174,8 +170,8 @@ const AlertModal: React.FC<AlertModalProps> = ({ alerts, onSelect }) => {
                 Select Alert Type
               </option>
               {alertOptions.map((a) => (
-                <option key={a.alert_id} value={a.alert_id}>
-                  {a.name ?? a.alert_id}
+                <option key={a.name} value={a.name}>
+                  {a.name}
                 </option>
               ))}
             </select>
@@ -211,7 +207,7 @@ const AlertModal: React.FC<AlertModalProps> = ({ alerts, onSelect }) => {
             />
           </div>
 
-          {/* Climate */}
+          {/* Climate Condition */}
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1 text-gray-700">
               Climate Condition
@@ -230,13 +226,13 @@ const AlertModal: React.FC<AlertModalProps> = ({ alerts, onSelect }) => {
             </select>
           </div>
 
-          {/* Status Messages */}
+          {/* Error & Success Messages */}
           {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
           {successMsg && (
             <p className="text-green-600 text-sm mb-3">{successMsg}</p>
           )}
 
-          {/* Submit */}
+          {/* Submit Button */}
           <button
             type="submit"
             disabled={loading}
@@ -251,39 +247,34 @@ const AlertModal: React.FC<AlertModalProps> = ({ alerts, onSelect }) => {
         </form>
       )}
 
-      {/* View Alerts */}
+      {/* --- VIEW ALERTS --- */}
       {viewMode === "view" && (
         <div className="max-w-md mx-auto bg-white p-6 rounded-xl shadow-lg">
           <h2 className="text-lg font-semibold mb-4 text-gray-800 text-center">
-            Alert History
+            Active Alerts
           </h2>
-
-          {triggeredAlerts.length === 0 && (!alerts || alerts.length === 0) ? (
+          {triggeredAlerts.length === 0 ? (
             <p className="text-gray-500 text-center">
-              No alerts triggered yet.
+              No active alerts currently.
             </p>
           ) : (
             <ul className="space-y-3 max-h-80 overflow-y-auto pr-2">
               {triggeredAlerts.map((alert) => (
                 <li
-                  key={alert.alert_id}
+                  key={alert.id}
                   className="p-3 rounded-lg border border-blue-300 bg-blue-50 shadow-sm"
                 >
                   <div className="font-semibold text-gray-800">
-                    {alert.name} ({alert.alert_id})
+                    {alert.alert_type}
                   </div>
                   <div className="text-sm text-gray-600">
-                    Climate: {getClimateLabel(alert.climate_condition)}
+                    Best Ship: {alert.best_ship}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Final Score: {alert.final_score.toFixed(2)}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
-                    Coordinates: ({alert.target_x}, {alert.target_y})
-                  </div>
-                  <div
-                    className={`mt-1 text-xs font-medium ${
-                      alert.status ? "text-green-600" : "text-red-500"
-                    }`}
-                  >
-                    {alert.status ? "Active" : "Inactive"}
+                    {new Date(alert.timestamp).toLocaleString()}
                   </div>
                 </li>
               ))}

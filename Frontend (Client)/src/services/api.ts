@@ -47,6 +47,28 @@ export interface AlertType {
   weater: number;
 }
 
+export interface TriggerAlertRequest {
+  alert_id: string;
+  latitude: number;
+  longitude: number;
+  climate_condition: number;
+}
+
+export interface TriggerAlertResponse {
+  alert_type: string;
+  best_ship: string;
+  final_score: number;
+}
+
+export interface AlertResultBase {
+  id?: number;
+  alert_type: string;
+  best_ship: string;
+  final_score: number;
+  timestamp: string;
+}
+
+/* ---------- Ships ---------- */
 export const getAllShips = async (): Promise<ShipInfo[]> => {
   const response = await fetch(`${BASE_URL}/ships`);
   if (!response.ok) throw new Error("Failed to fetch ships");
@@ -84,7 +106,7 @@ export const createAllShip = async (
   return response.json();
 };
 
-/* ---------- API: Locations ---------- */
+/* ---------- Locations ---------- */
 export const generateRandomLocation = async (): Promise<LocationResponse> => {
   const response = await fetch(`${BASE_URL}/generate-location`);
   if (!response.ok) throw new Error("Failed to generate random location");
@@ -103,9 +125,28 @@ export const generateMultipleRandomLocations = async (
   return response.json();
 };
 
+/* ---------- Alerts ---------- */
 export const getAllAlerts = async (): Promise<AlertType[]> => {
   const response = await fetch(`${BASE_URL}/alerts`);
   if (!response.ok) throw new Error("Failed to fetch alerts");
   return response.json();
 };
 
+/* ---------- Alert Trigger & Results ---------- */
+export const triggerAlert = async (
+  data: TriggerAlertRequest
+): Promise<TriggerAlertResponse> => {
+  const response = await fetch(`${BASE_URL}/trigger`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error("Failed to trigger alert");
+  return response.json();
+};
+
+export const getAllTriggeredAlerts = async (): Promise<AlertResultBase[]> => {
+  const response = await fetch(`${BASE_URL}/alert-results`);
+  if (!response.ok) throw new Error("Failed to fetch alert results");
+  return response.json();
+};

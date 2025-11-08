@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Double, Float
 from sqlalchemy.orm import relationship
 from database import Base
-
+from datetime import datetime
 
 class Ship(Base):
     __tablename__ = "ships"
@@ -39,3 +39,14 @@ class Alert(Base):
     human_error = Column(Double, nullable=False)
     attack = Column(Double, nullable=False)
     weather = Column(Double, nullable=False)
+
+class AlertResult(Base):
+    __tablename__ = "alert_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    alert_type = Column(String(255), nullable=False)
+    best_ship = Column(String(255), nullable=False)
+    ship_id = Column(Integer, nullable=False)
+    final_score = Column(Float, nullable=False)
+    timestamp = Column(String(255), default=datetime.utcnow)
+    status = Column(Boolean, default=True)

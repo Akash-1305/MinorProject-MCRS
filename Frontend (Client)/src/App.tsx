@@ -1,4 +1,3 @@
-// App.tsx
 import { useState, useEffect } from "react";
 import { Ship, Trash2, Navigation, Bell, Search } from "lucide-react";
 import MapView from "./components/MapView";
@@ -11,10 +10,12 @@ import {
   getAllAllShips,
   createAllShip,
   getAllAlerts,
+  triggerAlert,
+  getAllTriggeredAlerts,
+  AlertResultBase,
 } from "./services/api";
 import { generateRandomShips } from "./utils/generateShips";
 
-// Ship data structure (must match MapView)
 interface ShipData {
   id: string;
   name: string;
@@ -40,7 +41,10 @@ function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [loading, setLoading] = useState(true);
+  const [alertCount, setAlertCount] = useState(0);
+  const [triggeredAlerts, setTriggeredAlerts] = useState<AlertResultBase[]>([]);
 
+  // ✅ Initial ships and alerts fetch
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -60,7 +64,6 @@ function App() {
 
         setShips(formattedShips);
 
-        // convert backend AlertType to local Alert objects
         const formattedAlerts: Alert[] = allAlerts.map((a, idx) => ({
           id: a.alert_id ?? `alert-${idx}`,
           type: "info",
@@ -81,6 +84,24 @@ function App() {
     fetchData();
   }, []);
 
+  // ✅ Fetch triggered alerts ONCE on page load
+  useEffect(() => {
+    const fetchTriggered = async () => {
+      try {
+        const data = await getAllTriggeredAlerts();
+        const activeAlerts = data.filter(
+          (alert: any) => alert.status === true || alert.status === 1
+        );
+        setTriggeredAlerts(activeAlerts);
+        setAlertCount(activeAlerts.length); // update alert badge count
+      } catch (err) {
+        console.error("Error fetching triggered alerts:", err);
+      }
+    };
+
+    fetchTriggered();
+  }, []);
+
   const addAlert = (
     type: Alert["type"],
     message: string,
@@ -98,26 +119,24 @@ function App() {
     ]);
   };
 
-  // called when user selects an alert in AlertModal
   const handleAlertSelect = async (alert: {
     id: string;
     label: string;
     type: "info" | "warning" | "error";
   }) => {
-    try {
-      // backend needs full TriggerAlertRequest; use defaults for coordinates/climate if not provided by UI
-      await triggerAlert({
-        alert_id: alert.id,
-        target_x: 0,
-        target_y: 0,
-        climate_condition: 0,
-        status: true,
-      });
+    // ✅ No triggerAlert() call here anymore
+    addAlert("info", `Alert "${alert.label}" triggered successfully.`, "user");
 
-      addAlert(alert.type, alert.label, "user");
+    // Refresh triggered alerts list (optional)
+    try {
+      const data = await getAllTriggeredAlerts();
+      const activeAlerts = data.filter(
+        (alert: any) => alert.status === true || alert.status === 1
+      );
+      setTriggeredAlerts(activeAlerts);
+      setAlertCount(activeAlerts.length);
     } catch (error) {
-      console.error("Failed to create alert:", error);
-      addAlert("error", "Failed to create alert", "system");
+      console.error("Failed to refresh triggered alerts:", error);
     }
   };
 
@@ -244,9 +263,9 @@ function App() {
       >
         <Bell className="w-5 h-5" />
         Alerts
-        {alerts.filter((a) => a.source === "user").length > 0 && (
+        {alertCount > 0 && (
           <span className="bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-            {alerts.filter((a) => a.source === "user").length}
+            {alertCount}
           </span>
         )}
       </button>
@@ -290,7 +309,11 @@ function App() {
         onClose={() => setActiveModal(null)}
         title="Ship Alerts"
       >
-        <AlertModal alerts={alerts} onSelect={handleAlertSelect} />
+        <AlertModal
+          alerts={alerts}
+          onSelect={handleAlertSelect}
+          onAlertCountChange={(count) => setAlertCount(count)}
+        />
       </Modal>
     </div>
   );

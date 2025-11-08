@@ -1,29 +1,64 @@
 import math
+from typing import List, Optional
 
-# ------------------ STRUCT-LIKE CLASSES ------------------
+
 class AlertType:
-    def __init__(self, name, human_error, attack, weather):
+    """
+    Alert type with numeric weights for human_error, attack, and weather.
+    """
+    def __init__(self, name: str, human_error: float, attack: float, weather: float):
         self.name = name
         self.human_error = human_error
         self.attack = attack
         self.weather = weather
 
 
-class Ship:
-    def __init__(self, name, type_, speed, lat, lon, human_error, attack, weather, climate_score):
-        self.name = name
-        self.type = type_
-        self.speed = speed
-        self.lat = lat
-        self.lon = lon
-        self.human_error = human_error
-        self.attack = attack
-        self.weather = weather
-        self.climate_score = climate_score
+class ShipData:
+    """
+    Ship object used for alert calculation.
+    Can be initialized from a dict (Pydantic/ORM) or directly.
+    """
+    def __init__(self, data):
+        if isinstance(data, dict):
+            self.id = data.get("shipid") or data.get("id")
+            self.name = data.get("name")
+            self.lat = float(data.get("latitude") or data.get("lat") or 0.0)
+            self.lon = float(data.get("longitude") or data.get("lon") or 0.0)
+            self.mission = bool(data.get("mission", False))  # ✅ include mission flag
+
+            ship_info = data.get("ship_info") or {}
+            self.ship_name = ship_info.get("name")
+            self.speed = float(ship_info.get("speed", 0.0))
+            self.humanalert = float(ship_info.get("humanalert", 0.0))
+            self.attack = float(ship_info.get("attack", 0.0))
+            self.robery = float(ship_info.get("robery", 0.0))
+            self.struck = float(ship_info.get("struck", 0.0))
+            self.resource = float(ship_info.get("resource", 0.0))
+            self.climate = float(ship_info.get("climate", 0.0))
+        else:
+            # Assume already has attributes (ORM object)
+            self.id = getattr(data, "id", None)
+            self.name = getattr(data, "name", "")
+            self.lat = float(getattr(data, "lat", 0.0))
+            self.lon = float(getattr(data, "lon", 0.0))
+            self.mission = bool(getattr(data, "mission", False))
+            self.ship_name = getattr(data, "ship_name", "")
+            self.speed = float(getattr(data, "speed", 0.0))
+            self.humanalert = float(getattr(data, "humanalert", 0.0))
+            self.attack = float(getattr(data, "attack", 0.0))
+            self.robery = float(getattr(data, "robery", 0.0))
+            self.struck = float(getattr(data, "struck", 0.0))
+            self.resource = float(getattr(data, "resource", 0.0))
+            self.climate = float(getattr(data, "climate", 0.0))
 
 
 class Result:
-    def __init__(self, name, type_, distance, speed, time, T_value, alert_score, climate_score, Final_score):
+    """
+    Result object representing the computed score and metrics for a ship.
+    """
+    def __init__(self, ship_id: int, name: str, type_: str, distance: float, speed: float, time: float,
+                 T_value: float, alert_score: float, climate_score: float, Final_score: float):
+        self.ship_id = ship_id
         self.name = name
         self.type = type_
         self.distance = distance
@@ -35,18 +70,19 @@ class Result:
         self.Final_score = Final_score
 
 
-# ------------------ DISTANCE FUNCTION (HAVERSINE FORMULA) ------------------
-def to_radians(degree):
+def to_radians(degree: float) -> float:
     return degree * math.pi / 180.0
 
 
-def calculate_distance(lat1, lon1, lat2, lon2):
+def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    Haversine formula to calculate distance between two points in km.
+    """
     R = 6371.0  # Earth radius in km
     dLat = to_radians(lat2 - lat1)
     dLon = to_radians(lon2 - lon1)
     lat1 = to_radians(lat1)
     lat2 = to_radians(lat2)
-
     a = (math.sin(dLat / 2) ** 2 +
          math.cos(lat1) * math.cos(lat2) *
          math.sin(dLon / 2) ** 2)
@@ -54,90 +90,59 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     return R * c
 
 
-# ------------------ SHIP LIST CLASS ------------------
-class ShipList:
-    def __init__(self):
-        # Alert types (base factors)
-        self.alerts = [
-            AlertType("Ship Drawn", 7.0, 2.0, 1.0),
-            AlertType("Ship Accident", 8.0, 1.0, 3.0),
-            AlertType("Ship Attack", 3.0, 9.0, 1.0),
-            AlertType("Ship Hijack", 4.0, 10.0, 2.0),
-            AlertType("Navy Attack", 2.0, 10.0, 1.0),
-            AlertType("Ship Struck", 6.0, 1.0, 5.0),
-            AlertType("Shortage of Resources", 9.0, 1.0, 2.0)
-        ]
+def process_alert(alert: AlertType, target_lat: float, target_lon: float,
+                  climate_choice: float, ships_data: List) -> Optional[Result]:
+    """
+    Process a list of ships and calculate the best ship based on alert, distance, speed, and climate.
+    Ships with mission=True are automatically skipped.
+    """
+    results: List[Result] = []
+    times: List[float] = []
 
-        # Ships (latitude, longitude as coordinates)
-        self.ships = [
-            Ship("INS Vikrant", "Battleship", 60, 12.9716, 77.5946, 0.7, 0.4, 0.3, 0.2),
-            Ship("INS Talwar", "Cruiser", 50, 13.0827, 80.2707, 0.6, 0.5, 0.4, 0.1),
-            Ship("INS Kolkata", "Destroyer", 55, 9.9252, 78.1198, 0.5, 0.6, 0.3, 0.3),
-            Ship("INS Chakra", "Submarine", 45, 15.3173, 75.7139, 0.4, 0.8, 0.2, 0.2),
-            Ship("INS Vikramaditya", "Carrier", 40, 19.0760, 72.8777, 0.8, 0.3, 0.4, 0.1)
-        ]
+    # Convert all ships to ShipData objects
+    ships = [ShipData(s) for s in ships_data]
 
-    def show_alerts(self):
-        print("\nAvailable Alert Types:")
-        for i, alert in enumerate(self.alerts, 1):
-            print(f"{i}. {alert.name}")
+    for s in ships:
+        # 🚫 Skip ships currently on a mission
+        if getattr(s, "mission", False):
+            continue
 
-    def alert_mode(self):
-        self.show_alerts()
-        choice = int(input(f"\nChoose an Alert Type (1-{len(self.alerts)}): "))
+        dist = calculate_distance(s.lat, s.lon, target_lat, target_lon)
+        time = dist / max(s.speed, 0.1)  # avoid division by zero
 
-        if not (1 <= choice <= len(self.alerts)):
-            print("Invalid choice.")
-            return
+        # Weighted alert scoring
+        alert_score = (
+            pow(alert.human_error, s.humanalert or 0.1) +
+            pow(alert.attack, s.attack or 0.1) +
+            pow(alert.weather, s.climate or 0.1)
+        )
 
-        selected = self.alerts[choice - 1]
+        climate_score = pow(climate_choice, s.climate or 0.1)
 
-        target_lat = float(input("\nEnter Target Latitude: "))
-        target_lon = float(input("Enter Target Longitude: "))
+        result = Result(
+            ship_id=s.id,
+            name=s.name,
+            type_=s.ship_name,
+            distance=dist,
+            speed=s.speed,
+            time=time,
+            T_value=0.0,
+            alert_score=alert_score,
+            climate_score=climate_score,
+            Final_score=0.0,
+        )
+        results.append(result)
+        times.append(time)
 
-        print("\nSelect Climate Condition:")
-        print("1. Tufan (1)\n2. High Waves (3)\n3. Clean (5)")
-        climate_choice = int(input("Enter choice: "))
+    if not results:
+        return None  # ✅ no available ship (all busy or invalid)
 
-        results = []
-        times = []
+    # Normalize based on time and compute final score
+    max_time = max(times)
+    for r in results:
+        r.T_value = max_time - r.time
+        r.Final_score = pow(r.alert_score, 0.4) + pow(r.T_value, 0.3) + r.climate_score
 
-        # Step 1: Calculate distance, time, and scores
-        for ship in self.ships:
-            dist = calculate_distance(ship.lat, ship.lon, target_lat, target_lon)
-            time = dist / ship.speed
-
-            alert_score = (
-                pow(selected.human_error, ship.human_error) +
-                pow(selected.attack, ship.attack) +
-                pow(selected.weather, ship.weather)
-            )
-
-            climate_score = pow(climate_choice, ship.climate_score)
-
-            results.append(Result(
-                ship.name, ship.type, dist, ship.speed, time,
-                0.0, alert_score, climate_score, 0.0
-            ))
-            times.append(time)
-
-        # Step 2: Max time
-        max_time = max(times)
-
-        # Step 3: Compute T-Value and Final Score
-        for r in results:
-            r.T_value = max_time - r.time
-            r.Final_score = pow(r.alert_score, 0.4) + pow(r.T_value, 0.3) + r.climate_score
-
-        # Step 4: Find best ship
-        best_ship = max(results, key=lambda r: r.Final_score)
-
-        print(f"Alert Type: {selected.name}")
-
-        print(f"Ship: {best_ship.name}")
-
-
-# ------------------ MAIN FUNCTION ------------------
-if __name__ == "__main__":
-    sl = ShipList()
-    sl.alert_mode()
+    # Return best scoring ship
+    best_ship = max(results, key=lambda r: r.Final_score)
+    return best_ship
