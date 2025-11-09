@@ -10,7 +10,6 @@ import {
   getAllAllShips,
   createAllShip,
   getAllAlerts,
-  triggerAlert,
   getAllTriggeredAlerts,
   AlertResultBase,
 } from "./services/api";
@@ -44,47 +43,6 @@ function App() {
   const [alertCount, setAlertCount] = useState(0);
   const [triggeredAlerts, setTriggeredAlerts] = useState<AlertResultBase[]>([]);
 
-  // ✅ Initial ships and alerts fetch
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [allShips, allAlerts] = await Promise.all([
-          getAllAllShips(),
-          getAllAlerts(),
-        ]);
-
-        const formattedShips: ShipData[] = allShips.map((ship) => ({
-          id: ship.shipid.toString(),
-          name: ship.name,
-          position: { lat: ship.latitude, lng: ship.longitude },
-          type: String(ship.type),
-          speed: ship.ship_info?.speed ?? 0,
-          rotation_speed: ship.ship_info?.rotation_speed ?? 0,
-        }));
-
-        setShips(formattedShips);
-
-        const formattedAlerts: Alert[] = allAlerts.map((a, idx) => ({
-          id: a.alert_id ?? `alert-${idx}`,
-          type: "info",
-          message: a.name ?? a.alert_id,
-          timestamp: new Date(),
-          source: "user",
-        }));
-
-        setAlerts(formattedAlerts);
-      } catch (error) {
-        console.error("Failed to fetch ships or alerts:", error);
-        addAlert("error", "Failed to load ships or alerts from server");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  // ✅ Fetch triggered alerts ONCE on page load
   useEffect(() => {
     const fetchTriggered = async () => {
       try {
@@ -100,6 +58,31 @@ function App() {
     };
 
     fetchTriggered();
+  }, []);
+
+  useEffect(() => {
+    const fetchShips = async () => {
+      try {
+        const allShips = await getAllAllShips();
+        const formattedShips: ShipData[] = allShips.map((ship) => ({
+          id: ship.shipid.toString(),
+          name: ship.name,
+          position: { lat: ship.latitude, lng: ship.longitude },
+          type: String(ship.type),
+          speed: ship.ship_info?.speed ?? 0,
+          rotation_speed: ship.ship_info?.rotation_speed ?? 0,
+        }));
+        setShips(formattedShips);
+      } catch (error) {
+        console.error("Failed to fetch ships:", error);
+        addAlert("error", "Failed to update ships from server");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Fetch immediately on mount
+    fetchShips();
   }, []);
 
   const addAlert = (
@@ -124,7 +107,6 @@ function App() {
     label: string;
     type: "info" | "warning" | "error";
   }) => {
-    // ✅ No triggerAlert() call here anymore
     addAlert("info", `Alert "${alert.label}" triggered successfully.`, "user");
 
     // Refresh triggered alerts list (optional)

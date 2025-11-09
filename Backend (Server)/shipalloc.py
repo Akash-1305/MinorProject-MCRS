@@ -135,9 +135,8 @@ def process_alert(alert: AlertType, target_lat: float, target_lon: float,
         times.append(time)
 
     if not results:
-        return None  # ✅ no available ship (all busy or invalid)
-
-    # Normalize based on time and compute final score
+        return None
+        
     max_time = max(times)
     for r in results:
         r.T_value = max_time - r.time

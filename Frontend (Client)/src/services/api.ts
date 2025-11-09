@@ -65,6 +65,8 @@ export interface AlertResultBase {
   alert_type: string;
   best_ship: string;
   final_score: number;
+  distance_km: number;
+  estimated_time_hr: number;
   timestamp: string;
 }
 

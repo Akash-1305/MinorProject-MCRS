@@ -268,10 +268,13 @@ const AlertModal: React.FC<AlertModalProps> = ({
                     {alert.alert_type}
                   </div>
                   <div className="text-sm text-gray-600">
-                    Best Ship: {alert.best_ship}
+                    Allotted Ship: {alert.best_ship}
                   </div>
                   <div className="text-sm text-gray-600">
-                    Final Score: {alert.final_score.toFixed(2)}
+                    Distance: {alert.distance_km.toFixed(2)}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Est_Time: {alert.estimated_time_hr}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
                     {new Date(alert.timestamp).toLocaleString()}
