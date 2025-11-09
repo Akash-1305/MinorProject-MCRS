@@ -67,3 +67,18 @@ def get_updated_positions(
 
     return updated_positions
 
+
+# In distance_calc.py
+def simulate_movement(lat1, lon1, lat2, lon2, speed_kmh):
+    """
+    Simulate movement by returning intermediate positions as a message string.
+    """
+    positions = get_updated_positions(lat1, lon1, lat2, lon2, speed_kmh)
+    message_lines = []
+
+    for i, (lat, lon) in enumerate(positions):
+        message_lines.append(f"Hour {i}: Latitude={lat:.6f}, Longitude={lon:.6f}")
+
+    message_lines.append("Reached destination successfully! ✅")
+    return "\n".join(message_lines)
+

@@ -1,7 +1,6 @@
 // services/api.ts
 const BASE_URL = "http://localhost:8000";
 
-/* ---------- Interfaces ---------- */
 export interface ShipInfo {
   name: string;
   speed: number;
@@ -65,12 +64,25 @@ export interface AlertResultBase {
   alert_type: string;
   best_ship: string;
   final_score: number;
-  distance_km: number;
-  estimated_time_hr: number;
   timestamp: string;
 }
 
-/* ---------- Ships ---------- */
+export interface UpdateShipPositionRequest {
+  ship_id: number;
+  latitude: number;
+  longitude: number;
+}
+
+export interface UpdateShipPositionResponse {
+  ship_id: number;
+  old_latitude: number;
+  old_longitude: number;
+  new_latitude: number;
+  new_longitude: number;
+  distance_km: number;
+  message: string;
+}
+
 export const getAllShips = async (): Promise<ShipInfo[]> => {
   const response = await fetch(`${BASE_URL}/ships`);
   if (!response.ok) throw new Error("Failed to fetch ships");
@@ -108,7 +120,6 @@ export const createAllShip = async (
   return response.json();
 };
 
-/* ---------- Locations ---------- */
 export const generateRandomLocation = async (): Promise<LocationResponse> => {
   const response = await fetch(`${BASE_URL}/generate-location`);
   if (!response.ok) throw new Error("Failed to generate random location");
@@ -127,14 +138,12 @@ export const generateMultipleRandomLocations = async (
   return response.json();
 };
 
-/* ---------- Alerts ---------- */
 export const getAllAlerts = async (): Promise<AlertType[]> => {
   const response = await fetch(`${BASE_URL}/alerts`);
   if (!response.ok) throw new Error("Failed to fetch alerts");
   return response.json();
 };
 
-/* ---------- Alert Trigger & Results ---------- */
 export const triggerAlert = async (
   data: TriggerAlertRequest
 ): Promise<TriggerAlertResponse> => {
@@ -150,5 +159,21 @@ export const triggerAlert = async (
 export const getAllTriggeredAlerts = async (): Promise<AlertResultBase[]> => {
   const response = await fetch(`${BASE_URL}/alert-results`);
   if (!response.ok) throw new Error("Failed to fetch alert results");
+  return response.json();
+};
+
+export const updateShipPosition = async (
+  data: UpdateShipPositionRequest
+): Promise<UpdateShipPositionResponse> => {
+  const response = await fetch(`${BASE_URL}/update-ship-position`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to update ship position");
+  }
+
   return response.json();
 };

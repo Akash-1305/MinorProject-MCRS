@@ -32,6 +32,7 @@ def get_db():
     finally:
         db.close()
 
+
 @app.get("/ships", response_model=List[schemas.ShipRead])
 def get_all_ships(db: Session = Depends(get_db)):
     return db.query(Ship).all()
@@ -150,12 +151,9 @@ def get_all_alerts(db: Session = Depends(get_db)):
 @app.post("/trigger", response_model=schemas.TriggerAlertResponse)
 def trigger_alert(request: schemas.TriggerAlertRequest, db: Session = Depends(get_db)):
     try:
-        # 1️⃣ Get alert details
         alert_db = db.query(Alert).filter(Alert.name == request.alert_type).first()
         if not alert_db:
-            raise HTTPException(
-                status_code=404, detail=f"Alert type '{request.alert_type}' not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Alert type '{request.alert_type}' not found")
 
         alert_obj = shipalloc.AlertType(
             name=alert_db.name,
@@ -164,14 +162,12 @@ def trigger_alert(request: schemas.TriggerAlertRequest, db: Session = Depends(ge
             weather=alert_db.weather,
         )
 
-        # 2️⃣ Get available ships (not on mission)
         available_ships = db.query(AllShip).filter(
             (AllShip.mission == False) | (AllShip.mission == 0)
         ).all()
         if not available_ships:
             raise HTTPException(status_code=404, detail="All ships are currently on mission")
 
-        # 3️⃣ Gather ship details
         ships_data = []
         for allship in available_ships:
             ship = db.query(Ship).filter(Ship.id == allship.type).first()
@@ -197,7 +193,6 @@ def trigger_alert(request: schemas.TriggerAlertRequest, db: Session = Depends(ge
         if not ships_data:
             raise HTTPException(status_code=404, detail="No ships available for alert calculation")
 
-        # 4️⃣ Determine best ship using custom logic
         best_ship = shipalloc.process_alert(
             alert_obj,
             request.latitude,
@@ -208,7 +203,6 @@ def trigger_alert(request: schemas.TriggerAlertRequest, db: Session = Depends(ge
         if not best_ship:
             raise HTTPException(status_code=404, detail="Could not determine best ship")
 
-        # 5️⃣ Lock the selected ship for update
         selected_ship = (
             db.query(AllShip)
             .filter(
@@ -225,76 +219,25 @@ def trigger_alert(request: schemas.TriggerAlertRequest, db: Session = Depends(ge
 
         selected_ship.mission = True
         db.add(selected_ship)
-        db.commit()
-        db.refresh(selected_ship)
 
-        # 6️⃣ Calculate distance and travel time
-        point1_lat, point1_lon = selected_ship.latitude, selected_ship.longitude
-        point2_lat, point2_lon = request.latitude, request.longitude
-
-        distance_km = distance_calc.haversine(point1_lat, point1_lon, point2_lat, point2_lon)
-        travel_time_hr = distance_calc.estimate_travel_time(distance_km, best_ship.speed)
-
-        # 7️⃣ Generate intermediate positions for ship movement
-        updated_positions = distance_calc.get_updated_positions(
-            point1_lat, point1_lon, point2_lat, point2_lon, best_ship.speed
-        )
-
-        # ✅ Update ship's final position in DB
-        selected_ship.latitude = updated_positions[-1][0]
-        selected_ship.longitude = updated_positions[-1][1]
-        db.add(selected_ship)
-        db.commit()
-        db.refresh(selected_ship)
-
-        # 8️⃣ Save alert result in DB
-        result_entry = AlertResult(
+        alert_result = AlertResult(
             alert_type=request.alert_type,
-            best_ship=best_ship.name,
             ship_id=best_ship.ship_id,
+            best_ship=best_ship.name,
             final_score=best_ship.Final_score,
-            distance_km=distance_km,
-            estimated_time_hr=travel_time_hr,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.utcnow()
         )
-        db.add(result_entry)
-        db.commit()
+        db.add(alert_result)
 
-        # 9️⃣ Return response
+        db.commit()
+        db.refresh(selected_ship)
+        db.refresh(alert_result)
+
         return schemas.TriggerAlertResponse(
             alert_type=request.alert_type,
             best_ship=best_ship.name,
             ship_id=best_ship.ship_id,
-            final_score=best_ship.Final_score,
-            distance_km=distance_km,
-            estimated_time_hr=travel_time_hr,
-        )
-
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-
-@app.post("/update_ship_position", response_model=schemas.UpdateShipPositionResponse)
-def update_ship_position(request: schemas.UpdateShipPositionRequest, db: Session = Depends(get_db)):
-    try:
-        ship = db.query(AllShip).filter(AllShip.shipid == request.ship_id).first()
-        if not ship:
-            raise HTTPException(status_code=404, detail=f"Ship with ID {request.ship_id} not found")
-
-        ship.latitude = request.latitude
-        ship.longitude = request.longitude
-        ship.last_updated = datetime.utcnow()  # optional if you have a column for this
-
-        db.add(ship)
-        db.commit()
-        db.refresh(ship)
-
-        return schemas.UpdateShipPositionResponse(
-            ship_id=ship.shipid,
-            latitude=ship.latitude,
-            longitude=ship.longitude,
-            message="Ship position updated successfully"
+            final_score=best_ship.Final_score
         )
 
     except SQLAlchemyError as e:
@@ -306,3 +249,41 @@ def update_ship_position(request: schemas.UpdateShipPositionRequest, db: Session
 def get_all_alert_results(db: Session = Depends(get_db)):
     results = db.query(AlertResult).order_by(AlertResult.timestamp.desc()).all()
     return results
+
+
+@app.post("/update-ship-position", response_model=schemas.UpdateShipPositionResponse)
+def update_ship_position(
+    data: schemas.UpdateShipPositionRequest,
+    db: Session = Depends(get_db)
+):
+    ship = db.query(AllShip).filter(AllShip.shipid == data.ship_id).first()
+    if not ship:
+        raise HTTPException(status_code=404, detail="Ship not found")
+
+    # Store old position
+    old_lat, old_lon = ship.latitude, ship.longitude
+
+    # Calculate distance
+    distance = distance_calc.haversine(old_lat, old_lon, data.latitude, data.longitude)
+
+    # Optional: simulate movement and get message
+    simulation_message = distance_calc.simulate_movement(
+        old_lat, old_lon, data.latitude, data.longitude, speed_kmh=50  # or any default speed
+    )
+
+    # Update ship position in DB
+    ship.latitude = data.latitude
+    ship.longitude = data.longitude
+    db.add(ship)
+    db.commit()
+    db.refresh(ship)
+
+    return schemas.UpdateShipPositionResponse(
+        ship_id=ship.shipid,
+        old_latitude=old_lat,
+        old_longitude=old_lon,
+        new_latitude=ship.latitude,
+        new_longitude=ship.longitude,
+        distance_km=distance,
+        message=f"Ship moved successfully. Distance traveled: {distance:.2f} km\n\n{simulation_message}"
+    )

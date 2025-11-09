@@ -1,4 +1,3 @@
-# schemas.py
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
@@ -64,8 +63,6 @@ class TriggerAlertResponse(BaseModel):
     best_ship: str
     ship_id: int
     final_score: float
-    distance_km: float
-    estimated_time_hr: float
 
 
 class AlertResultBase(BaseModel):
@@ -73,14 +70,12 @@ class AlertResultBase(BaseModel):
     alert_type: str
     best_ship: str
     final_score: float
-    distance_km: Optional[float] = None
-    estimated_time_hr: Optional[float] = None
     timestamp: datetime
     status: bool
 
     class Config:
         from_attributes = True
-
+    
 class UpdateShipPositionRequest(BaseModel):
     ship_id: int
     latitude: float
@@ -88,7 +83,9 @@ class UpdateShipPositionRequest(BaseModel):
 
 class UpdateShipPositionResponse(BaseModel):
     ship_id: int
-    latitude: float
-    longitude: float
+    old_latitude: float
+    old_longitude: float
+    new_latitude: float
+    new_longitude: float
+    distance_km: float
     message: str
-    

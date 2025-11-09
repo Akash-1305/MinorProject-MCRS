@@ -48,7 +48,5 @@ class AlertResult(Base):
     best_ship = Column(String(255), nullable=False)
     ship_id = Column(Integer, nullable=False)
     final_score = Column(Float, nullable=False)
-    distance_km = Column(Float, nullable=True)
-    estimated_time_hr = Column(Float, nullable=True)
     timestamp = Column(String(255), default=datetime.utcnow)
     status = Column(Boolean, default=True)
