@@ -285,5 +285,5 @@ def update_ship_position(
         new_latitude=ship.latitude,
         new_longitude=ship.longitude,
         distance_km=distance,
-        message=f"Ship moved successfully. Distance traveled: {distance:.2f} km\n\n{simulation_message}"
+        message=f"Ship moved successfully.\nDistance traveled: {distance:.2f} km\n{simulation_message}"
     )

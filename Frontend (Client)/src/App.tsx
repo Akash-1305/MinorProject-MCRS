@@ -283,7 +283,19 @@ function App() {
         onClose={() => setActiveModal(null)}
         title="Move Ship"
       >
-        <MovingModal ships={ships} onMove={moveShip} />
+        <MovingModal
+          ships={ships}
+          onMove={(id, lat, lng) => {
+            setShips(
+              ships.map((ship) =>
+                ship.id === id ? { ...ship, position: { lat, lng } } : ship
+              )
+            );
+            const ship = ships.find((s) => s.id === id);
+            if (ship) addAlert("info", `Ship "${ship.name}" has been moved`);
+          }}
+          onClose={() => setActiveModal(null)}
+        />
       </Modal>
 
       <Modal

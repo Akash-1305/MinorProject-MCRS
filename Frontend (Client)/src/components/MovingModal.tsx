@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { updateShipPosition } from "../services/api";
 
 interface Ship {
@@ -12,84 +12,129 @@ interface MovingModalProps {
 }
 
 export default function MovingModal({ ships, onMove }: MovingModalProps) {
-  const [coordinates, setCoordinates] = useState<{
-    [id: string]: { lat: string; lng: string };
-  }>({});
+  const [search, setSearch] = useState("");
+  const [selectedShip, setSelectedShip] = useState<Ship | null>(null);
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [message, setMessage] = useState(""); // Response message
 
-  // Handle input changes
-  const handleChange = (id: string, type: "lat" | "lng", value: string) => {
-    setCoordinates((prev) => ({
-      ...prev,
-      [id]: {
-        ...prev[id],
-        [type]: value,
-      },
-    }));
-  };
+  const filteredShips = useMemo(() => {
+    if (!search) return ships;
+    return ships.filter((ship) =>
+      ship.name.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [search, ships]);
 
-  // Handle moving the ship
-  const handleMove = async (id: string, lat: number, lng: number) => {
-    if (isNaN(lat) || isNaN(lng)) {
-      alert("Please enter valid coordinates");
+  const handleMove = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    if (!selectedShip) {
+      setMessage("Please select a ship");
+      return;
+    }
+
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+
+    if (isNaN(latitude) || isNaN(longitude)) {
+      setMessage("Please enter valid coordinates");
       return;
     }
 
     try {
       const result = await updateShipPosition({
-        ship_id: Number(id),
-        latitude: lat,
-        longitude: lng,
+        ship_id: Number(selectedShip.id),
+        latitude,
+        longitude,
       });
-      alert(result.message);
-      onMove(id, lat, lng); // call parent callback if needed
+
+      setMessage(result.message); // Show message
+      onMove(selectedShip.id, latitude, longitude);
+
+      // Reset only coordinates
+      setLat("");
+      setLng("");
     } catch (err) {
       console.error(err);
-      alert("Error moving ship");
+      setMessage("Error moving ship");
     }
   };
 
   return (
-    <div className="space-y-4">
-      {ships.length === 0 ? (
-        <p className="text-gray-500 text-center py-8">No ships to move</p>
-      ) : (
-        <div className="space-y-2 max-h-96 overflow-y-auto">
-          {ships.map((ship) => (
-            <div
-              key={ship.id}
-              className="flex flex-col p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors"
-            >
-              <span className="font-medium text-gray-800">{ship.name}</span>
-              <div className="flex space-x-2 mt-2">
+    <div className="flex space-x-8">
+      <div className="flex-1 space-y-4">
+        {ships.length === 0 ? (
+          <p className="text-gray-500 text-center py-8">No ships available</p>
+        ) : (
+          <>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search and select ship"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setDropdownOpen(true);
+                }}
+                onFocus={() => setDropdownOpen(true)}
+                className="border border-gray-300 rounded-lg px-3 py-2 w-full"
+              />
+              {dropdownOpen && filteredShips.length > 0 && (
+                <ul className="absolute top-full left-0 right-0 max-h-40 overflow-y-auto bg-white border border-gray-300 rounded-lg mt-1 z-10">
+                  {filteredShips.map((ship) => (
+                    <li
+                      key={ship.id}
+                      className="px-3 py-2 hover:bg-blue-100 cursor-pointer"
+                      onClick={() => {
+                        setSelectedShip(ship);
+                        setSearch(ship.name);
+                        setDropdownOpen(false);
+                        setMessage("");
+                      }}
+                    >
+                      {ship.name}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {selectedShip && (
+              <div className="flex flex-col space-y-2 mt-2">
                 <input
                   type="number"
                   placeholder="Latitude"
-                  value={coordinates[ship.id]?.lat || ""}
-                  onChange={(e) => handleChange(ship.id, "lat", e.target.value)}
-                  className="border border-gray-300 rounded-lg px-2 py-1 w-24"
+                  value={lat}
+                  onChange={(e) => setLat(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-3 py-2"
                 />
                 <input
                   type="number"
                   placeholder="Longitude"
-                  value={coordinates[ship.id]?.lng || ""}
-                  onChange={(e) => handleChange(ship.id, "lng", e.target.value)}
-                  className="border border-gray-300 rounded-lg px-2 py-1 w-24"
+                  value={lng}
+                  onChange={(e) => setLng(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-3 py-2"
                 />
                 <button
-                  onClick={() => {
-                    const lat = parseFloat(coordinates[ship.id]?.lat || "");
-                    const lng = parseFloat(coordinates[ship.id]?.lng || "");
-                    handleMove(ship.id, lat, lng);
-                  }}
+                  type="button"
+                  onClick={handleMove}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
                 >
                   Move
                 </button>
               </div>
-            </div>
-          ))}
+            )}
+          </>
+        )}
+        <div className="flex-1 border border-gray-300 rounded-lg p-4 min-h-[200px] max-h-[300px] overflow-y-auto">
+          <h3 className="font-semibold mb-2">Response</h3>
+          {message ? (
+            <p className="text-gray-700 whitespace-pre-wrap">{message}</p>
+          ) : (
+            <p className="text-gray-400">Response will appear here...</p>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
