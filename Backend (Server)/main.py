@@ -89,6 +89,16 @@ def get_allship_by_id(allship_id: int, db: Session = Depends(get_db)):
         ship_info=schemas.ShipRead.from_orm(ship),
     )
 
+@app.delete("/allships/{allship_id}", status_code=200)
+def delete_allship(allship_id: int, db: Session = Depends(get_db)):
+    allship = db.query(AllShip).filter(AllShip.shipid == allship_id).first()
+    if not allship:
+        raise HTTPException(status_code=404, detail="AllShip not found")
+
+    db.delete(allship)
+    db.commit()
+
+    return {"detail": f"AllShip with ID {allship_id} deleted successfully"}
 
 @app.post("/addships", response_model=schemas.AllShip)
 def create_allship(allship: schemas.AllShipCreate, db: Session = Depends(get_db)):
@@ -143,6 +153,9 @@ def get_all_alerts(db: Session = Depends(get_db)):
             human_error=alert.human_error,
             attack=alert.attack,
             weather=alert.weather,
+            robbery=alert.robbery,
+            resource=alert.resource,
+            struck=alert.struck,
         )
         for alert in alerts
     ]
@@ -160,6 +173,9 @@ def trigger_alert(request: schemas.TriggerAlertRequest, db: Session = Depends(ge
             human_error=alert_db.human_error,
             attack=alert_db.attack,
             weather=alert_db.weather,
+            robbery=alert_db.robbery,
+            resource=alert_db.resource,
+            struck=alert_db.struck,
         )
 
         available_ships = db.query(AllShip).filter(
@@ -250,6 +266,45 @@ def get_all_alert_results(db: Session = Depends(get_db)):
     results = db.query(AlertResult).order_by(AlertResult.timestamp.desc()).all()
     return results
 
+from fastapi import Body
+
+@app.put("/complete-mission")
+def complete_mission(
+    alert_result_id: int = Query(..., description="ID of the alert result to mark complete"),
+    db: Session = Depends(get_db)
+):
+    try:
+        # --- Step 1: Fetch the alert result record ---
+        alert_result = db.query(AlertResult).filter(AlertResult.id == alert_result_id).first()
+        if not alert_result:
+            raise HTTPException(status_code=404, detail=f"AlertResult with ID {alert_result_id} not found")
+
+        # --- Step 2: Mark alert result as completed (status = False) ---
+        alert_result.status = False
+        db.add(alert_result)
+
+        # --- Step 3: Fetch the corresponding ship ---
+        ship = db.query(AllShip).filter(AllShip.shipid == alert_result.ship_id).first()
+        if not ship:
+            raise HTTPException(status_code=404, detail=f"Ship with ID {alert_result.ship_id} not found")
+
+        # --- Step 4: Mark ship mission as completed (mission = False) ---
+        ship.mission = False
+        db.add(ship)
+
+        # --- Step 5: Commit both updates ---
+        db.commit()
+
+        return {
+            "detail": "Mission marked as complete successfully.",
+            "alert_result_id": alert_result.id,
+            "ship_id": ship.shipid,
+            "ship_name": ship.name,
+        }
+
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @app.post("/update-ship-position", response_model=schemas.UpdateShipPositionResponse)
 def update_ship_position(
@@ -267,7 +322,7 @@ def update_ship_position(
     distance = distance_calc.haversine(old_lat, old_lon, data.latitude, data.longitude)
 
     # Optional: simulate movement and get message
-    simulation_message = distance_calc.simulate_movement(
+    simulation_message = distance_calc.simulate_movement_with_restrictions(
         old_lat, old_lon, data.latitude, data.longitude, speed_kmh=50  # or any default speed
     )
 

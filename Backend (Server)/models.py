@@ -39,6 +39,9 @@ class Alert(Base):
     human_error = Column(Double, nullable=False)
     attack = Column(Double, nullable=False)
     weather = Column(Double, nullable=False)
+    robbery = Column(Double, nullable=False)
+    struck = Column(Double, nullable=False)
+    resource = Column(Double, nullable=False)
 
 class AlertResult(Base):
     __tablename__ = "alert_results"

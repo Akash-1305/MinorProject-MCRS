@@ -6,6 +6,7 @@ import {
   TriggerAlertRequest,
   TriggerAlertResponse,
   AlertResultBase,
+  completeMission, // ✅ uses only alert_result_id now
 } from "../services/api";
 
 interface AlertOption {
@@ -15,7 +16,7 @@ interface AlertOption {
 interface AlertModalProps {
   alerts?: AlertResultBase[];
   onSelect: (alert: { id: string; label: string; type: "info" }) => void;
-  onAlertCountChange?: (count: number) => void; // For badge update in parent
+  onAlertCountChange?: (count: number) => void;
 }
 
 const AlertModal: React.FC<AlertModalProps> = ({
@@ -33,6 +34,7 @@ const AlertModal: React.FC<AlertModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [completingId, setCompletingId] = useState<string | null>(null);
 
   // Fetch all available alert types
   useEffect(() => {
@@ -48,21 +50,20 @@ const AlertModal: React.FC<AlertModalProps> = ({
     fetchAlerts();
   }, []);
 
-  // Fetch triggered alerts only when "View Alerts" tab is active
+  // Fetch triggered alerts when "View Alerts" mode is active
   useEffect(() => {
     if (viewMode === "view") {
       const fetchTriggered = async () => {
         try {
           const data = await getAllTriggeredAlerts();
 
-          // Only include alerts where status is true or 1
+          // Filter active alerts (status = true)
           const activeAlerts = data.filter(
             (alert: any) => alert.status === true || alert.status === 1
           );
 
           setTriggeredAlerts(activeAlerts);
 
-          // Notify parent (for badge)
           if (onAlertCountChange) {
             onAlertCountChange(activeAlerts.length);
           }
@@ -75,11 +76,31 @@ const AlertModal: React.FC<AlertModalProps> = ({
     }
   }, [viewMode, onAlertCountChange]);
 
+  // ✅ Handle marking alert as completed
+  const handleCompleteAlert = async (alertId: number) => {
+    try {
+      setCompletingId(alertId.toString());
+      await completeMission(alertId); // ✅ send only alert_result_id
+
+      const updated = triggeredAlerts.filter((a) => a.id !== alertId);
+      setTriggeredAlerts(updated);
+
+      if (onAlertCountChange) {
+        onAlertCountChange(updated.length);
+      }
+    } catch (err) {
+      console.error("Error completing mission:", err);
+      setError("Failed to mark mission as completed.");
+    } finally {
+      setCompletingId(null);
+    }
+  };
+
   // Trigger a new alert
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (loading) return; // ✅ prevents double submission
+    if (loading) return;
 
     setError(null);
     setSuccessMsg(null);
@@ -104,7 +125,7 @@ const AlertModal: React.FC<AlertModalProps> = ({
       setSuccessMsg(`Alert "${response.alert_type}" triggered successfully!`);
       onSelect({ id: selectedAlert, label: response.alert_type, type: "info" });
 
-      // reset form
+      // Reset form
       setSelectedAlert("");
       setLat("");
       setLng("");
@@ -220,13 +241,17 @@ const AlertModal: React.FC<AlertModalProps> = ({
               <option hidden value="">
                 Select Condition
               </option>
-              <option value="1">Tufan</option>
-              <option value="2">High Waves</option>
-              <option value="3">Clean</option>
+              <option value="5">Tsunami</option>
+              <option value="10">Tufan</option>
+              <option value="15">Cyclone</option>
+              <option value="25">Flooding</option>
+              <option value="35">Storm</option>
+              <option value="45">High Seas/Large Waves</option>
+              <option value="60">Clear</option>
             </select>
           </div>
 
-          {/* Error & Success Messages */}
+          {/* Error & Success */}
           {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
           {successMsg && (
             <p className="text-green-600 text-sm mb-3">{successMsg}</p>
@@ -273,9 +298,24 @@ const AlertModal: React.FC<AlertModalProps> = ({
                   <div className="text-sm text-gray-600">
                     Final Score: {alert.final_score.toFixed(2)}
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-gray-500 mt-1 mb-2">
                     {new Date(alert.timestamp).toLocaleString()}
                   </div>
+
+                  {/* ✅ Mark as Completed Button */}
+                  <button
+                    onClick={() => handleCompleteAlert(alert.id)}
+                    disabled={completingId === alert.id.toString()}
+                    className={`mt-2 w-full py-1.5 rounded-md font-medium transition ${
+                      completingId === alert.id.toString()
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-green-600 hover:bg-green-700 text-white"
+                    }`}
+                  >
+                    {completingId === alert.id.toString()
+                      ? "Marking..."
+                      : "Mark as Completed"}
+                  </button>
                 </li>
               ))}
             </ul>

@@ -50,12 +50,15 @@ class AlertBase(BaseModel):
     human_error: float
     attack: float
     weather: float
+    robbery: float
+    struck: float
+    resource: float
 
 class TriggerAlertRequest(BaseModel):
     alert_type: str
     latitude: float
     longitude: float
-    climate_condition: int  # 1, 3, or 5
+    climate_condition: int
 
 
 class TriggerAlertResponse(BaseModel):

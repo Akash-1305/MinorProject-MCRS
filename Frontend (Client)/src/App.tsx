@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Ship, Trash2, Navigation, Bell, Search } from "lucide-react";
 import MapView from "./components/MapView";
 import Modal from "./components/Modal";
@@ -175,45 +175,64 @@ function App() {
     setActiveModal(null);
   };
 
-  const generateRandomShipsData = async () => {
-    try {
-      const randomShips = await generateRandomShips(5);
-      const formattedShips: ShipData[] = randomShips.map((ship, index) => ({
-        id: `random-${Date.now()}-${index}`,
-        name: ship.name,
-        position: ship.position,
-        type: ship.type,
-        speed: ship.speed,
-        rotation_speed: ship.rotation_speed,
-      }));
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
-      setShips((prev) => [...prev, ...formattedShips]);
-      addAlert("info", `Added ${formattedShips.length} random ships`);
-    } catch (error) {
-      console.error("Failed to generate random ships:", error);
-      addAlert("error", "Failed to generate random ships");
-    }
-  };
-
-  const filteredShips = ships.filter((ship) =>
-    ship.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  /** 🔍 Filtered Ships (Memoized) */
+  const filteredShips = useMemo(() => {
+    const q = debouncedQuery.trim().toLowerCase();
+    if (!q) return ships;
+    return ships.filter((ship) => ship.name.toLowerCase().includes(q));
+  }, [ships, debouncedQuery]);
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
       <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 w-full max-w-2xl px-4">
         <div className="relative">
           <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
-            <Search className="w-5 h-5 text-gray-500" />
+            <Search className="w-5 h-5 text-gray-500 mr-3" />
           </div>
           <input
             type="text"
+            placeholder="Search for ships..."
+            className="w-full pl-12 pr-12 py-3 rounded-full bg-white shadow-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 text-lg"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search ships by name..."
-            className="w-full pl-12 pr-12 py-3 rounded-full bg-white shadow-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 text-lg"
           />
         </div>
+
+        {/* 🔎 Search Dropdown */}
+        {debouncedQuery && (
+          <div className="mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 max-h-96 overflow-y-auto no-scrollbar">
+            {filteredShips.length > 0 ? (
+              filteredShips.map((ship) => (
+                <div
+                  key={ship.id}
+                  className="p-4 hover:bg-gray-100 cursor-pointer border-b border-gray-100 transition"
+                  onClick={() => {
+                    alert(`Ship selected: ${ship.name}`);
+                    setSearchQuery("");
+                  }}
+                >
+                  <p className="font-semibold text-gray-800">{ship.name}</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Type: {ship.type} • Speed: {ship.speed} • Rotation:{" "}
+                    {ship.rotation_speed}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Lat: {ship.position.lat.toFixed(3)}, Lng:{" "}
+                    {ship.position.lng.toFixed(3)}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div className="p-4 text-gray-500 text-sm">No ships found</div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="absolute right-6 top-32 z-10 flex flex-col gap-3">

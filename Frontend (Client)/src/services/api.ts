@@ -108,6 +108,20 @@ export const getAllShipById = async (allShipId: number): Promise<AllShip> => {
   return response.json();
 };
 
+export const deleteAllShip = async (
+  allShipId: number
+): Promise<{ detail: string }> => {
+  const response = await fetch(`${BASE_URL}/allships/${allShipId}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete allship with id ${allShipId}`);
+  }
+
+  return response.json();
+};
+
 export const createAllShip = async (
   data: Omit<AllShip, "shipid" | "ship_info">
 ): Promise<Omit<AllShip, "ship_info">> => {
@@ -176,4 +190,15 @@ export const updateShipPosition = async (
   }
 
   return response.json();
+};
+
+export const completeMission = async (alert_result_id: number) => {
+  const res = await fetch(
+    `${BASE_URL}/complete-mission?alert_result_id=${alert_result_id}`,
+    { method: "PUT" }
+  );
+  if (!res.ok) {
+    throw new Error("Failed to mark mission complete");
+  }
+  return res.json();
 };
